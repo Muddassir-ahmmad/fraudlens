@@ -32,6 +32,7 @@ export default function LoginPage() {
 
           <button type="submit" className="btn btn-primary login-actions">Sign In</button>
         </form>
+        <button type="button" className="link-btn customer-demo-link" onClick={() => navigate('/pay')}>Open customer payment demo</button>
       </div>
     </div>
   );

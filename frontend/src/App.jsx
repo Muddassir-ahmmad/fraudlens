@@ -8,6 +8,8 @@ import TransactionsPage from './pages/TransactionsPage';
 import AlertsPage from './pages/AlertsPage';
 import InvestigationPage from './pages/InvestigationPage';
 import SimulatorPage from './pages/SimulatorPage';
+import CustomerPaymentPage from './pages/CustomerPaymentPage';
+import CustomerVerificationPage from './pages/CustomerVerificationPage';
 
 const pageTitles = {
   '/dashboard': 'Dashboard',
@@ -52,6 +54,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LoginPage />} />
+      <Route path="/pay" element={<CustomerPaymentPage />} />
+      <Route path="/verify/:customerId" element={<CustomerVerificationPage />} />
       <Route path="/dashboard" element={renderLayout(<DashboardPage />)} />
       <Route path="/transactions" element={renderLayout(<TransactionsPage />)} />
       <Route path="/alerts" element={renderLayout(<AlertsPage />)} />

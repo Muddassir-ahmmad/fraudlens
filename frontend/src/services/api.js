@@ -16,9 +16,33 @@ const normalizeTransaction = (transaction) => ({
   risk: transaction.risk_level,
   riskScore: transaction.risk_score,
   reasons: transaction.risk_reasons || [],
+  riskFactors: transaction.risk_factors || [],
   type: transaction.transaction_type,
   history: [],
 });
+
+export const payTransaction = async (payload) => {
+  try {
+    const { data } = await api.post('/api/transactions/pay', {
+      customer_id: payload.customerId,
+      recipient: payload.recipient,
+      recipient_type: payload.recipientType,
+      amount: Number(payload.amount),
+      timestamp: payload.timestamp,
+    });
+    return {
+      ...data,
+      riskScore: data.risk_score,
+      riskLevel: data.risk_level,
+      reasons: data.risk_reasons || [],
+      riskFactors: data.risk_factors || [],
+      alertCreated: data.alert_created,
+    };
+  } catch (error) {
+    console.warn('Payment analysis unavailable.', error);
+    return null;
+  }
+};
 
 const normalizeAlert = (alert, transaction) => ({
   ...alert,
@@ -175,6 +199,76 @@ export const postAlertAction = async (alertId, action) => {
   } catch (error) {
     console.warn('Alert action endpoint unavailable. Local action accepted.', error);
     return { id: alertId, action, status: 'updated' };
+  }
+};
+
+export const requestVerification = async (alertId) => {
+  try {
+    const { data } = await api.post(`/api/alerts/${alertId}/verification-request`);
+    return data;
+  } catch (error) {
+    console.warn('Verification request unavailable.', error);
+    return null;
+  }
+};
+
+export const getAlertVerification = async (alertId) => {
+  try {
+    const { data } = await api.get(`/api/alerts/${alertId}/verification`);
+    return data;
+  } catch (error) {
+    console.warn('Alert verification unavailable.', error);
+    return null;
+  }
+};
+
+export const getVerificationForCustomer = async (customerId) => {
+  try {
+    const { data } = await api.get(`/api/verification/customers/${customerId}`);
+    return data;
+  } catch (error) {
+    console.warn('Customer verification unavailable.', error);
+    return null;
+  }
+};
+
+export const submitVerificationResponse = async (verificationId, response) => {
+  try {
+    const { data } = await api.post(`/api/verification/${verificationId}/response`, { response });
+    return data;
+  } catch (error) {
+    console.warn('Could not submit verification response.', error);
+    return null;
+  }
+};
+
+export const getAlertActivity = async (alertId) => {
+  try {
+    const { data } = await api.get(`/api/alerts/${alertId}/activity`);
+    return data;
+  } catch (error) {
+    console.warn('Investigation activity unavailable.', error);
+    return null;
+  }
+};
+
+export const getAlertNotes = async (alertId) => {
+  try {
+    const { data } = await api.get(`/api/alerts/${alertId}/notes`);
+    return data;
+  } catch (error) {
+    console.warn('Investigator notes unavailable.', error);
+    return [];
+  }
+};
+
+export const addAlertNote = async (alertId, content) => {
+  try {
+    const { data } = await api.post(`/api/alerts/${alertId}/notes`, { content });
+    return data;
+  } catch (error) {
+    console.warn('Could not save investigator note.', error);
+    return null;
   }
 };
 
