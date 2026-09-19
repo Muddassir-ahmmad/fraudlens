@@ -361,12 +361,20 @@ button.link-btn {
 
 .field label { font-size: 0.82rem; font-weight: 700; color: var(--muted); }
 
-.field input {
+.field input,
+.field select,
+.field textarea {
   width: 100%;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 11px 12px;
+  color: var(--text);
+}
+
+.field textarea {
+  min-height: 100px;
+  resize: vertical;
 }
 
 .login-actions { margin-top: 8px; }

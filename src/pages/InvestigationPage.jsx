@@ -1,16 +1,16 @@
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getTransactionById, getCustomerTransactions, getCustomerTimeline, patchAlert, postAlertAction } from '../services/api';
+import { patchAlert, postAlertAction } from '../services/api';
 import { mockTransactions, mockCustomerHistory } from '../data/mockData';
 import RiskBadge from '../components/RiskBadge';
 import RiskFactorList from '../components/RiskFactorList';
 import TransactionTimeline from '../components/TransactionTimeline';
 
 const actionOptions = ['Allow', 'Request Verification', 'Under Review', 'Simulated Restriction'];
+const callOutcomeOptions = ['Not attempted', 'Call attempted', 'Customer verified', 'Customer unavailable', 'Wrong number'];
 
 export default function InvestigationPage() {
   const location = useLocation();
-  const navigate = useNavigate();
   const transactionId = location.state?.transactionId || 'TXN-1048';
 
   const [transaction, setTransaction] = useState(null);
@@ -18,6 +18,9 @@ export default function InvestigationPage() {
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('New');
+  const [callStatus, setCallStatus] = useState('Not attempted');
+  const [verificationNotes, setVerificationNotes] = useState('No verification call logged yet.');
+  const [followUpText, setFollowUpText] = useState('Call customer to confirm whether the transfer was authorized.');
 
   useEffect(() => {
     const load = async () => {
@@ -53,7 +56,26 @@ export default function InvestigationPage() {
   const handleAction = async (action) => {
     await patchAlert('ALRT-201', action);
     await postAlertAction('ALRT-201', action);
-    setStatus(action === 'Allow' ? 'Resolved' : action === 'Request Verification' ? 'Investigating' : action === 'Under Review' ? 'Investigating' : 'Resolved');
+    setStatus(action === 'Allow' ? 'Resolved' : action === 'Request Verification' ? 'Verification Pending' : action === 'Under Review' ? 'Under Review' : 'Restricted - Simulated');
+
+    if (action === 'Request Verification') {
+      setCallStatus('Call attempted');
+      setFollowUpText('Customer callback requested for transaction confirmation.');
+    }
+  };
+
+  const handleCallCustomer = () => {
+    setCallStatus('Call attempted');
+    setVerificationNotes('Investigator attempted verification call to the customer. Customer needs to confirm the transaction or provide details.');
+    setFollowUpText('Ask customer whether they initiated the transfer and whether the device/location is familiar.');
+    setStatus('Verification Pending');
+  };
+
+  const handleCustomerVerified = () => {
+    setCallStatus('Customer verified');
+    setVerificationNotes('Customer confirmed the transaction was legitimate. Documentation and follow-up required before closure.');
+    setFollowUpText('Document customer confirmation and proceed with final review.');
+    setStatus('Customer Confirmed');
   };
 
   return (
@@ -133,6 +155,49 @@ export default function InvestigationPage() {
             <h3>Transaction Timeline</h3>
           </div>
           <TransactionTimeline timeline={timeline} />
+        </div>
+      </div>
+
+      <div className="card list-card" style={{ marginTop: 20 }}>
+        <div className="section-header">
+          <h3>Customer Verification</h3>
+        </div>
+
+        <div className="info-grid" style={{ marginBottom: 16 }}>
+          <div className="info-item"><span className="k">Customer</span><span className="v">{transaction.customer}</span></div>
+          <div className="info-item"><span className="k">Contact</span><span className="v">+91 98765 43210</span></div>
+          <div className="info-item"><span className="k">Verification Status</span><span className="v">{callStatus}</span></div>
+          <div className="info-item"><span className="k">Best Next Step</span><span className="v">{followUpText}</span></div>
+        </div>
+
+        <div className="field">
+          <label>Call outcome</label>
+          <select value={callStatus} onChange={(event) => setCallStatus(event.target.value)}>
+            {callOutcomeOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field" style={{ marginTop: 16 }}>
+          <label>Investigator notes</label>
+          <textarea value={verificationNotes} onChange={(event) => setVerificationNotes(event.target.value)} rows={4} />
+        </div>
+
+        <div className="field" style={{ marginTop: 16 }}>
+          <label>Follow-up action</label>
+          <input value={followUpText} onChange={(event) => setFollowUpText(event.target.value)} />
+        </div>
+
+        <div className="action-row" style={{ marginTop: 18 }}>
+          <button type="button" className="btn btn-primary" onClick={handleCallCustomer}>Call Customer</button>
+          <button type="button" className="btn btn-success" onClick={handleCustomerVerified}>Verified by Customer</button>
+          <button type="button" className="btn btn-warning" onClick={() => {
+            setCallStatus('Customer unavailable');
+            setVerificationNotes('Customer unavailable at the moment; callback requested for a follow-up call.');
+            setFollowUpText('Schedule callback and escalate if the customer does not respond within 2 hours.');
+            setStatus('Awaiting Callback');
+          }}>Request Callback</button>
         </div>
       </div>
 

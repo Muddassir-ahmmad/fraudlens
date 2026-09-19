@@ -4,8 +4,6 @@ const navItems = [
   { label: 'Fraud Alerts', icon: '⚠', path: '/alerts' },
   { label: 'Investigation', icon: '⌕', path: '/investigation' },
   { label: 'Simulator', icon: '◫', path: '/simulator' },
-  { label: 'Analytics', icon: '◭', path: '/analytics' },
-  { label: 'Settings', icon: '⚙', path: '/settings' },
 ];
 
 export default function Sidebar({ active, onNavigate }) {

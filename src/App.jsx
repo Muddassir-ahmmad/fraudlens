@@ -8,8 +8,6 @@ import TransactionsPage from './pages/TransactionsPage';
 import AlertsPage from './pages/AlertsPage';
 import InvestigationPage from './pages/InvestigationPage';
 import SimulatorPage from './pages/SimulatorPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import SettingsPage from './pages/SettingsPage';
 
 const pageTitles = {
   '/dashboard': 'Dashboard',
@@ -17,8 +15,6 @@ const pageTitles = {
   '/alerts': 'Fraud Alerts',
   '/investigation': 'Investigation',
   '/simulator': 'Simulator',
-  '/analytics': 'Analytics',
-  '/settings': 'Settings',
 };
 
 export default function App() {
@@ -46,8 +42,6 @@ export default function App() {
       <Route path="/alerts" element={renderLayout(<AlertsPage />)} />
       <Route path="/investigation" element={renderLayout(<InvestigationPage />)} />
       <Route path="/simulator" element={renderLayout(<SimulatorPage />)} />
-      <Route path="/analytics" element={renderLayout(<AnalyticsPage />)} />
-      <Route path="/settings" element={renderLayout(<SettingsPage />)} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
