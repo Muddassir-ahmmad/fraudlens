@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import Base, SessionLocal, engine
+from app.database import Base, SessionLocal, engine, ensure_schema
 from app.routes import alerts, dashboard, transactions
 from app.services.seed import seed_database
 
@@ -11,6 +11,7 @@ from app.services.seed import seed_database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    ensure_schema()
     db = SessionLocal()
     try:
         seed_database(db)
@@ -40,6 +41,7 @@ app.include_router(dashboard.router)
 app.include_router(transactions.router)
 app.include_router(transactions.customer_router)
 app.include_router(alerts.router)
+app.include_router(alerts.verification_router)
 
 
 @app.get("/api/health")

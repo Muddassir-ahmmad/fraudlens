@@ -4,13 +4,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.fraud.engine import analyze_transaction
-from app.models.entities import Alert, Transaction
+from app.models.entities import Alert, InvestigationEvent, Transaction
 from app.schemas.api import TransactionCreate
 
 ALERT_THRESHOLD = 61
 
 
-def create_transaction(db: Session, payload: TransactionCreate) -> Transaction:
+def create_transaction(
+    db: Session,
+    payload: TransactionCreate,
+    recipient_type: str | None = None,
+) -> Transaction:
     transaction = Transaction(**payload.model_dump(), status="COMPLETED")
     history = list(
         db.scalars(
@@ -19,10 +23,12 @@ def create_transaction(db: Session, payload: TransactionCreate) -> Transaction:
             .order_by(Transaction.timestamp)
         )
     )
-    analysis = analyze_transaction(transaction, history)
+    analysis = analyze_transaction(transaction, history, recipient_type=recipient_type)
     transaction.risk_score = analysis.score
     transaction.risk_level = analysis.level
     transaction.risk_reasons = analysis.reasons
+    transaction.risk_factors = analysis.factors
+    transaction.status = "REQUIRES_REVIEW" if transaction.risk_level == "HIGH" else "COMPLETED"
     db.add(transaction)
     db.flush()
 
@@ -36,6 +42,14 @@ def create_transaction(db: Session, payload: TransactionCreate) -> Transaction:
                 reasons=transaction.risk_reasons,
             )
         )
+        db.flush()
+        alert = db.scalar(select(Alert).where(Alert.transaction_id == transaction.transaction_id))
+        if alert:
+            db.add(InvestigationEvent(
+                alert_id=alert.alert_id,
+                event_type="ALERT_CREATED",
+                description="High-risk transaction alert created",
+            ))
     db.commit()
     db.refresh(transaction)
     return transaction

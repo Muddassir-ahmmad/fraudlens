@@ -28,6 +28,7 @@ class Transaction(Base):
     risk_score: Mapped[int] = mapped_column(Integer, default=0)
     risk_level: Mapped[str] = mapped_column(String(20), default="LOW")
     risk_reasons: Mapped[list[str]] = mapped_column(JSON, default=list)
+    risk_factors: Mapped[list[dict]] = mapped_column(JSON, default=list)
     investigation_action: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
@@ -44,3 +45,37 @@ class Alert(Base):
     status: Mapped[str] = mapped_column(String(30), default="NEW")
     investigator_action: Mapped[str | None] = mapped_column(String(40), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class CustomerVerification(Base):
+    __tablename__ = "customer_verifications"
+
+    verification_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    alert_id: Mapped[str] = mapped_column(String(36), index=True)
+    customer_id: Mapped[str] = mapped_column(String(100), index=True)
+    transaction_id: Mapped[str] = mapped_column(String(36), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="PENDING")
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    customer_response: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+
+class InvestigationEvent(Base):
+    __tablename__ = "investigation_events"
+
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    alert_id: Mapped[str] = mapped_column(String(36), index=True)
+    event_type: Mapped[str] = mapped_column(String(60))
+    description: Mapped[str] = mapped_column(Text)
+    investigator: Mapped[str] = mapped_column(String(100), default="Bank Investigator")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class InvestigatorNote(Base):
+    __tablename__ = "investigator_notes"
+
+    note_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    alert_id: Mapped[str] = mapped_column(String(36), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    investigator: Mapped[str] = mapped_column(String(100), default="Bank Investigator")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
