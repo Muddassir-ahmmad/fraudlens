@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getAlerts, getCustomerTimeline, getCustomerTransactions, getTransactionById, postAlertAction } from '../services/api';
+import { addAlertNote, getAlertActivity, getAlertNotes, getAlertVerification, getAlerts, getCustomerTimeline, getCustomerTransactions, getTransactionById, postAlertAction, requestVerification } from '../services/api';
 import { mockTransactions, mockCustomerHistory } from '../data/mockData';
 import RiskBadge from '../components/RiskBadge';
 import RiskFactorList from '../components/RiskFactorList';
@@ -15,6 +15,10 @@ export default function InvestigationPage() {
 
   const [transaction, setTransaction] = useState(null);
   const [alertId, setAlertId] = useState(null);
+  const [verification, setVerification] = useState(null);
+  const [activity, setActivity] = useState([]);
+  const [savedNotes, setSavedNotes] = useState([]);
+  const [noteError, setNoteError] = useState('');
   const [history, setHistory] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +59,19 @@ export default function InvestigationPage() {
         risk: item.risk,
         high: item.risk === 'HIGH',
       })));
-      setAlertId(alerts?.find((alert) => alert.transactionId === selected.id)?.id || null);
+      const matchingAlert = alerts?.find((alert) => alert.transactionId === selected.id);
+      const currentAlertId = matchingAlert?.id || null;
+      setAlertId(currentAlertId);
+      if (currentAlertId) {
+        const [currentVerification, currentActivity, currentNotes] = await Promise.all([
+          getAlertVerification(currentAlertId),
+          getAlertActivity(currentAlertId),
+          getAlertNotes(currentAlertId),
+        ]);
+        setVerification(currentVerification);
+        setActivity(currentActivity || []);
+        setSavedNotes(currentNotes || []);
+      }
       setLoading(false);
     };
 
@@ -79,6 +95,24 @@ export default function InvestigationPage() {
     };
     const backendAction = actionMap[action];
     setActionError('');
+    if (action === 'Request Verification') {
+      const requested = await requestVerification(alertId);
+      if (!requested) {
+        setActionError('Could not send the verification request. Check the backend connection.');
+        return;
+      }
+      setVerification(requested);
+      setStatus('Under Review');
+      setCallStatus('Verification requested');
+      setFollowUpText('Customer can answer the simulated verification call at /verify.');
+      setActivity((currentActivity) => [...currentActivity, {
+        event_type: 'VERIFICATION_REQUESTED',
+        description: 'Simulated voice verification requested from customer',
+        created_at: requested.requested_at,
+        investigator: 'Bank Investigator',
+      }]);
+      return;
+    }
     const response = await postAlertAction(alertId, backendAction);
     if (response?.status === 'updated' && response?.action === backendAction) {
       setActionError('The backend did not accept this action.');
@@ -97,6 +131,23 @@ export default function InvestigationPage() {
     setVerificationNotes('Investigator attempted verification call to the customer. Customer needs to confirm the transaction or provide details.');
     setFollowUpText('Ask customer whether they initiated the transfer and whether the device/location is familiar.');
     setStatus('Verification Pending');
+  };
+
+  const handleSaveNote = async () => {
+    if (!alertId || !verificationNotes.trim()) return;
+    setNoteError('');
+    const note = await addAlertNote(alertId, verificationNotes.trim());
+    if (!note) {
+      setNoteError('Could not save the note. Check the backend connection.');
+      return;
+    }
+    setSavedNotes((currentNotes) => [...currentNotes, note]);
+    setActivity((currentActivity) => [...currentActivity, {
+      event_type: 'NOTE_ADDED',
+      description: 'Investigator note added',
+      created_at: note.created_at,
+      investigator: note.investigator,
+    }]);
   };
 
   const handleCustomerVerified = () => {
@@ -196,6 +247,9 @@ export default function InvestigationPage() {
           <div className="info-item"><span className="k">Contact</span><span className="v">+91 98765 43210</span></div>
           <div className="info-item"><span className="k">Verification Status</span><span className="v">{callStatus}</span></div>
           <div className="info-item"><span className="k">Best Next Step</span><span className="v">{followUpText}</span></div>
+          {verification && <div className="info-item"><span className="k">Verification Status</span><span className="v">{verification.status}</span></div>}
+          {verification?.customer_response && <div className="info-item"><span className="k">Customer Response</span><span className="v">{verification.customer_response}</span></div>}
+          {verification?.responded_at && <div className="info-item"><span className="k">Response Time</span><span className="v">{new Date(verification.responded_at).toLocaleString('en-IN')}</span></div>}
         </div>
 
         <div className="field">
@@ -210,6 +264,9 @@ export default function InvestigationPage() {
         <div className="field" style={{ marginTop: 16 }}>
           <label>Investigator notes</label>
           <textarea value={verificationNotes} onChange={(event) => setVerificationNotes(event.target.value)} rows={4} />
+          <button type="button" className="btn btn-secondary" onClick={handleSaveNote} disabled={!alertId || !verificationNotes.trim()}>Save Investigator Note</button>
+          {noteError && <div className="empty-state" style={{ marginTop: 10 }}>{noteError}</div>}
+          {savedNotes.map((note) => <div className="verification-note" key={note.note_id}><strong>{note.investigator}</strong><span>{note.content}</span><small>{new Date(note.created_at).toLocaleString('en-IN')}</small></div>)}
         </div>
 
         <div className="field" style={{ marginTop: 16 }}>
@@ -239,10 +296,15 @@ export default function InvestigationPage() {
               action === 'Allow' ? 'btn btn-success' :
               action === 'Request Verification' ? 'btn btn-warning' :
               action === 'Under Review' ? 'btn btn-secondary' : 'btn btn-danger'
-            } onClick={() => handleAction(action)}>{action}</button>
+            } disabled={action === 'Request Verification' && transaction.risk !== 'HIGH'} onClick={() => handleAction(action)}>{action}</button>
           ))}
         </div>
         {actionError && <div className="empty-state" style={{ marginTop: 16 }}>{actionError}</div>}
+      </div>
+
+      <div className="card list-card" style={{ marginTop: 20 }}>
+        <div className="section-header"><h3>Investigation Activity</h3></div>
+        {activity.length ? <div className="verification-activity">{activity.map((event, index) => <div className="verification-event" key={event.event_id || `${event.event_type}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{event.description}</span><small>{new Date(event.created_at).toLocaleString('en-IN')}</small></div>)}</div> : <div className="empty-state">No activity recorded yet.</div>}
       </div>
     </div>
   );
