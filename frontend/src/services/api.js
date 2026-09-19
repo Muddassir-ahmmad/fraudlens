@@ -16,6 +16,7 @@ const normalizeTransaction = (transaction) => ({
   risk: transaction.risk_level,
   riskScore: transaction.risk_score,
   reasons: transaction.risk_reasons || [],
+  riskFactors: transaction.risk_factors || [],
   type: transaction.transaction_type,
   history: [],
 });
@@ -24,9 +25,9 @@ const normalizeAlert = (alert, transaction) => ({
   ...alert,
   id: alert.alert_id,
   transactionId: alert.transaction_id,
-  customer: transaction?.customer || alert.customer_id,
+  customer: transaction?.customer || alert.customer_name || alert.customer_id,
   customerId: alert.customer_id,
-  amount: transaction?.amount,
+  amount: transaction?.amount ?? alert.amount,
   riskScore: alert.risk_score,
   riskLevel: alert.risk_level,
   createdAt: alert.created_at,
@@ -57,9 +58,9 @@ export const getDashboardSummary = async () => {
   }
 };
 
-export const getTransactions = async () => {
+export const getTransactions = async (params = {}) => {
   try {
-    const { data } = await api.get('/api/transactions');
+    const { data } = await api.get('/api/transactions', { params });
     return data.map(normalizeTransaction);
   } catch (error) {
     console.warn('Falling back to mock transactions data.', error);
@@ -77,14 +78,10 @@ export const getTransactionById = async (transactionId) => {
   }
 };
 
-export const getAlerts = async () => {
+export const getAlerts = async (params = {}) => {
   try {
-    const [{ data: alerts }, { data: transactions }] = await Promise.all([
-      api.get('/api/alerts'),
-      api.get('/api/transactions'),
-    ]);
-    const transactionsById = Object.fromEntries(transactions.map((transaction) => [transaction.transaction_id, normalizeTransaction(transaction)]));
-    return alerts.map((alert) => normalizeAlert(alert, transactionsById[alert.transaction_id]));
+    const { data: alerts } = await api.get('/api/alerts', { params });
+    return alerts.map((alert) => normalizeAlert(alert));
   } catch (error) {
     console.warn('Falling back to mock alerts data.', error);
     return null;
@@ -93,12 +90,8 @@ export const getAlerts = async () => {
 
 export const getAlertById = async (alertId) => {
   try {
-    const [{ data: alert }, { data: transactions }] = await Promise.all([
-      api.get(`/api/alerts/${alertId}`),
-      api.get('/api/transactions'),
-    ]);
-    const transaction = transactions.find((item) => item.transaction_id === alert.transaction_id);
-    return normalizeAlert(alert, transaction && normalizeTransaction(transaction));
+    const { data } = await api.get(`/api/alerts/${alertId}`);
+    return normalizeAlert(data);
   } catch (error) {
     console.warn('Falling back to mock alert detail data.', error);
     return null;
@@ -130,6 +123,77 @@ export const getCustomerTimeline = async (customerId) => {
   }
 };
 
+export const getCustomerProfile = async (customerId) => {
+  try {
+    const { data } = await api.get(`/api/customers/${customerId}/profile`);
+    return {
+      ...data,
+      transactions: data.transactions.map(normalizeTransaction),
+      previousAlerts: data.previous_alerts.map((alert) => normalizeAlert(alert)),
+      timeline: data.timeline.map((event) => ({
+        date: event.timestamp,
+        amount: event.amount,
+        risk: event.risk_level,
+        high: event.risk_level === 'HIGH',
+      })),
+      riskHistory: data.risk_history,
+    };
+  } catch (error) {
+    console.warn('Customer profile unavailable.', error);
+    return null;
+  }
+};
+
+export const getDashboardAnalytics = async () => {
+  try {
+    const { data } = await api.get('/api/dashboard/analytics');
+    return data;
+  } catch (error) {
+    console.warn('Dashboard analytics unavailable.', error);
+    return null;
+  }
+};
+
+export const openAlert = async (alertId) => {
+  try {
+    const { data } = await api.post(`/api/alerts/${alertId}/open`);
+    return data;
+  } catch (error) {
+    console.warn('Could not record investigation open event.', error);
+    return null;
+  }
+};
+
+export const getAlertNotes = async (alertId) => {
+  try {
+    const { data } = await api.get(`/api/alerts/${alertId}/notes`);
+    return data;
+  } catch (error) {
+    console.warn('Investigator notes unavailable.', error);
+    return null;
+  }
+};
+
+export const addAlertNote = async (alertId, content) => {
+  try {
+    const { data } = await api.post(`/api/alerts/${alertId}/notes`, { content });
+    return data;
+  } catch (error) {
+    console.warn('Could not save investigator note.', error);
+    return null;
+  }
+};
+
+export const getAlertActivity = async (alertId) => {
+  try {
+    const { data } = await api.get(`/api/alerts/${alertId}/activity`);
+    return data;
+  } catch (error) {
+    console.warn('Investigation activity unavailable.', error);
+    return null;
+  }
+};
+
 export const simulateTransaction = async (payload) => {
   try {
     const { data } = await api.post('/api/transactions/simulate', {
@@ -146,15 +210,12 @@ export const simulateTransaction = async (payload) => {
     return {
       ...normalizeTransaction(data),
       reasons: data.risk_reasons || [],
+      riskFactors: data.risk_factors || [],
+      alertCreated: data.risk_level === 'HIGH',
     };
   } catch (error) {
-    console.warn('Simulation endpoint unavailable. Returning locally mocked response.', error);
-    return {
-      riskScore: 91,
-      riskLevel: 'HIGH',
-      reasons: ['Unusual amount', 'Unusual time', 'Unknown sender', 'Historical deviation'],
-      transaction: payload,
-    };
+    console.warn('Simulation endpoint unavailable.', error);
+    return null;
   }
 };
 

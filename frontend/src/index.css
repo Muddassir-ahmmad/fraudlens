@@ -682,6 +682,94 @@ button.link-btn {
   border-color: var(--primary);
 }
 
+.filter-row input,
+.filter-row select {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.filter-row input:first-child {
+  flex: 1 1 280px;
+}
+
+.filter-row button {
+  min-height: 38px;
+}
+
+.active-filters {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: -4px 0 16px;
+}
+
+.error-state {
+  color: var(--danger);
+}
+
+.risk-breakdown {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.risk-breakdown-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  padding: 8px 0;
+}
+
+.risk-breakdown-row strong {
+  color: var(--danger);
+}
+
+.risk-breakdown-row small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.risk-breakdown-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-weight: 800;
+}
+
+.activity-list,
+.trend-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.activity-item,
+.trend-row {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.activity-item small,
+.activity-item span {
+  color: var(--muted);
+}
+
+.trend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .kicker {
   font-size: 0.74rem;
   font-weight: 700;

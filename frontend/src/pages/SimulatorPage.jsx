@@ -92,6 +92,7 @@ export default function SimulatorPage() {
   const [result, setResult] = useState(null);
   const [selectedScenario, setSelectedScenario] = useState('High Amount');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -104,8 +105,10 @@ export default function SimulatorPage() {
 
   const handleAnalyze = async () => {
     setLoading(true);
+    setError('');
     const output = await simulateTransaction(form);
-    setResult(output);
+    if (output) setResult(output);
+    else setError('The backend could not analyze this transaction. Check that the API is running.');
     setLoading(false);
   };
 
@@ -193,14 +196,20 @@ export default function SimulatorPage() {
               <div className="info-grid">
                 <div className="info-item"><span className="k">Risk Score</span><span className="v">{result.riskScore} / 100</span></div>
                 <div className="info-item"><span className="k">Risk Level</span><span className="v"><span className={`risk-badge ${scoreLabel === 'HIGH' ? 'risk-high' : scoreLabel === 'MEDIUM' ? 'risk-medium' : 'risk-low'}`}>{scoreLabel}</span></span></div>
+                <div className="info-item"><span className="k">Transaction Status</span><span className="v">{result.status}</span></div>
+                <div className="info-item"><span className="k">Alert Created</span><span className="v">{result.alertCreated ? 'Yes' : 'No'}</span></div>
               </div>
 
               <div style={{ marginTop: 18 }}>
                 <div className="kicker">Contributing reasons</div>
                 <RiskFactorList reasons={result.reasons || []} />
+                <div className="risk-breakdown">
+                  {(result.riskFactors || []).map((factor) => <div className="risk-breakdown-row" key={`${factor.name}-${factor.score}`}><span>{factor.name}</span><strong>+{factor.score}</strong><small>{factor.reason}</small></div>)}
+                </div>
               </div>
             </>
           )}
+          {error && <div className="empty-state error-state" style={{ marginTop: 16 }}>{error}</div>}
         </div>
       </div>
     </div>

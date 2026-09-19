@@ -1,31 +1,47 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTransactions } from '../services/api';
-import { mockTransactions } from '../data/mockData';
 import TransactionTable from '../components/TransactionTable';
 
-const filters = ['All', 'Low', 'Medium', 'High'];
+const riskFilters = ['All', 'LOW', 'MEDIUM', 'HIGH'];
+const statusFilters = ['All', 'COMPLETED'];
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState('All');
+  const [status, setStatus] = useState('All');
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const data = await getTransactions();
-      setTransactions(data || mockTransactions);
+      setError('');
+      const data = await getTransactions({
+        search: search || undefined,
+        risk_level: filter === 'All' ? undefined : filter,
+        status: status === 'All' ? undefined : status,
+        date_from: dateFrom || undefined,
+        date_to: dateTo ? `${dateTo}T23:59:59` : undefined,
+      });
+      if (data) setTransactions(data);
+      else setError('Backend is unavailable. Start the API and try again.');
       setLoading(false);
     };
     load();
-  }, []);
+  }, [search, filter, status, dateFrom, dateTo]);
 
-  const filtered = useMemo(() => {
-    if (filter === 'All') return transactions;
-    return transactions.filter((item) => item.risk === filter.toUpperCase());
-  }, [transactions, filter]);
+  const clearFilters = () => {
+    setSearch('');
+    setFilter('All');
+    setStatus('All');
+    setDateFrom('');
+    setDateTo('');
+  };
 
   if (loading) {
     return <div className="page"><div className="empty-state">Loading transactions…</div></div>;
@@ -41,15 +57,30 @@ export default function TransactionsPage() {
       </div>
 
       <div className="filter-row">
-        {filters.map((item) => (
-          <button key={item} type="button" className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>
-        ))}
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search transaction, customer, sender, receiver, merchant" aria-label="Search transactions" />
+        <select value={filter} onChange={(event) => setFilter(event.target.value)} aria-label="Filter by risk">
+          {riskFilters.map((item) => <option key={item} value={item}>{item === 'All' ? 'All risk levels' : item}</option>)}
+        </select>
+        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter by status">
+          {statusFilters.map((item) => <option key={item} value={item}>{item === 'All' ? 'All statuses' : item}</option>)}
+        </select>
+        <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} aria-label="From date" />
+        <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} aria-label="To date" />
+        <button type="button" onClick={clearFilters}>Clear filters</button>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="empty-state">No transactions found for this filter.</div>
+      <div className="active-filters">
+        Search: <strong>{search || 'none'}</strong> | Risk: <strong>{filter}</strong> | Status: <strong>{status}</strong>
+      </div>
+
+      {error ? (
+        <div className="empty-state error-state">{error}</div>
+      ) : loading ? (
+        <div className="empty-state">Loading transactions...</div>
+      ) : transactions.length === 0 ? (
+        <div className="empty-state">No transactions match the active filters.</div>
       ) : (
-        <TransactionTable transactions={filtered} onSelect={(txn) => navigate('/investigation', { state: { transactionId: txn.id } })} />
+        <TransactionTable transactions={transactions} onSelect={(txn) => navigate('/investigation', { state: { transactionId: txn.id } })} />
       )}
     </div>
   );
