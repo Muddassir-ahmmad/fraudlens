@@ -21,13 +21,28 @@ export default function App() {
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState('Dashboard');
   const [searchText, setSearchText] = useState('');
+  const [theme, setTheme] = useState(() => localStorage.getItem('fraudlens-theme') || 'light');
+
+  const handleLogout = () => {
+    setActivePage('Dashboard');
+    setSearchText('');
+    navigate('/');
+  };
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => {
+      const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('fraudlens-theme', nextTheme);
+      return nextTheme;
+    });
+  };
 
   const renderLayout = (pageContent) => (
-    <div className="app-shell">
+    <div className={`app-shell ${theme === 'dark' ? 'theme-dark' : ''}`}>
       <div className="layout">
         <Sidebar active={activePage} onNavigate={(path, label) => { setActivePage(label); navigate(path); }} />
         <div className="content">
-          <Topbar title={pageTitles[window.location.pathname] || 'Dashboard'} searchValue={searchText} onSearchChange={setSearchText} />
+          <Topbar title={pageTitles[window.location.pathname] || 'Dashboard'} searchValue={searchText} onSearchChange={setSearchText} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />
           {pageContent}
         </div>
       </div>

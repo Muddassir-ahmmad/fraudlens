@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { patchAlert, postAlertAction } from '../services/api';
+import { getAlerts, getCustomerTimeline, getCustomerTransactions, getTransactionById, postAlertAction } from '../services/api';
 import { mockTransactions, mockCustomerHistory } from '../data/mockData';
 import RiskBadge from '../components/RiskBadge';
 import RiskFactorList from '../components/RiskFactorList';
@@ -14,10 +14,12 @@ export default function InvestigationPage() {
   const transactionId = location.state?.transactionId || 'TXN-1048';
 
   const [transaction, setTransaction] = useState(null);
+  const [alertId, setAlertId] = useState(null);
   const [history, setHistory] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('New');
+  const [actionError, setActionError] = useState('');
   const [callStatus, setCallStatus] = useState('Not attempted');
   const [verificationNotes, setVerificationNotes] = useState('No verification call logged yet.');
   const [followUpText, setFollowUpText] = useState('Call customer to confirm whether the transfer was authorized.');
@@ -25,24 +27,35 @@ export default function InvestigationPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const selected = mockTransactions.find((item) => item.id === transactionId) || mockTransactions[0];
+      const selected = await getTransactionById(transactionId) || mockTransactions.find((item) => item.id === transactionId) || mockTransactions[0];
       setTransaction(selected);
       setStatus(selected.status || 'New');
 
-      const customerHistory = mockCustomerHistory[selected.customerId] || selected.history.map((amount, index) => ({
-        date: `2026-09-${index + 10}`,
-        amount,
-        label: 'Received',
-        risk: index === selected.history.length - 1 ? 'HIGH' : 'LOW',
-      }));
+      const [customerTransactions, customerTimeline, alerts] = await Promise.all([
+        getCustomerTransactions(selected.customerId).catch(() => null),
+        getCustomerTimeline(selected.customerId).catch(() => null),
+        getAlerts().catch(() => null),
+      ]);
+      const customerHistory = customerTransactions?.length ? customerTransactions.map((item) => ({
+        date: item.dateTime,
+        amount: item.amount,
+        label: item.type,
+        risk: item.risk,
+      })) : mockCustomerHistory[selected.customerId] || (selected.history || []).map((amount, index) => ({
+          date: `2026-09-${index + 10}`,
+          amount,
+          label: 'Received',
+          risk: index === selected.history.length - 1 ? 'HIGH' : 'LOW',
+        }));
 
       setHistory(customerHistory);
-      setTimeline(selected.timeline || customerHistory.map((item) => ({
+      setTimeline(customerTimeline?.length ? customerTimeline : selected.timeline || customerHistory.map((item) => ({
         date: item.date,
         amount: item.amount,
         risk: item.risk,
         high: item.risk === 'HIGH',
       })));
+      setAlertId(alerts?.find((alert) => alert.transactionId === selected.id)?.id || null);
       setLoading(false);
     };
 
@@ -54,8 +67,23 @@ export default function InvestigationPage() {
   }
 
   const handleAction = async (action) => {
-    await patchAlert('ALRT-201', action);
-    await postAlertAction('ALRT-201', action);
+    if (!alertId) {
+      setActionError('No backend alert is linked to this transaction.');
+      return;
+    }
+    const actionMap = {
+      Allow: 'ALLOW',
+      'Request Verification': 'REQUEST_VERIFICATION',
+      'Under Review': 'UNDER_REVIEW',
+      'Simulated Restriction': 'SIMULATED_RESTRICTION',
+    };
+    const backendAction = actionMap[action];
+    setActionError('');
+    const response = await postAlertAction(alertId, backendAction);
+    if (response?.status === 'updated' && response?.action === backendAction) {
+      setActionError('The backend did not accept this action.');
+      return;
+    }
     setStatus(action === 'Allow' ? 'Resolved' : action === 'Request Verification' ? 'Verification Pending' : action === 'Under Review' ? 'Under Review' : 'Restricted - Simulated');
 
     if (action === 'Request Verification') {
@@ -214,6 +242,7 @@ export default function InvestigationPage() {
             } onClick={() => handleAction(action)}>{action}</button>
           ))}
         </div>
+        {actionError && <div className="empty-state" style={{ marginTop: 16 }}>{actionError}</div>}
       </div>
     </div>
   );

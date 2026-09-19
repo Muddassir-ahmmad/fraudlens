@@ -9,10 +9,10 @@ const navItems = [
 export default function Sidebar({ active, onNavigate }) {
   return (
     <aside className="sidebar">
-      <div className="brand">
+      <button className="brand brand-button" type="button" onClick={() => onNavigate('/dashboard', 'Dashboard')} aria-label="Go to dashboard">
         <div className="brand-mark">F</div>
         <div className="brand-text">FraudLens</div>
-      </div>
+      </button>
 
       <nav className="nav">
         {navItems.map((item) => (

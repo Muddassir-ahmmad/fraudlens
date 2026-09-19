@@ -15,7 +15,11 @@ class FraudAnalysis:
 def analyze_transaction(transaction: Transaction, history: list[Transaction]) -> FraudAnalysis:
     score = 0
     reasons: list[str] = []
-    prior = [item for item in history if item.transaction_id != transaction.transaction_id]
+    prior = [
+        item
+        for item in history
+        if item.transaction_id != transaction.transaction_id and item.risk_level != "HIGH"
+    ]
 
     if prior:
         average_amount = mean(item.amount for item in prior)
