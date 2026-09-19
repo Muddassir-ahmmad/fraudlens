@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { addAlertNote, getAlertActivity, getAlertNotes, getAlerts, getCustomerProfile, getCustomerTimeline, getCustomerTransactions, getTransactionById, openAlert, postAlertAction } from '../services/api';
+import { getAlerts, getCustomerTimeline, getCustomerTransactions, getTransactionById, postAlertAction } from '../services/api';
 import { mockTransactions, mockCustomerHistory } from '../data/mockData';
 import RiskBadge from '../components/RiskBadge';
 import RiskFactorList from '../components/RiskFactorList';
@@ -15,14 +15,8 @@ export default function InvestigationPage() {
 
   const [transaction, setTransaction] = useState(null);
   const [alertId, setAlertId] = useState(null);
-  const [profile, setProfile] = useState(null);
   const [history, setHistory] = useState([]);
   const [timeline, setTimeline] = useState([]);
-  const [notes, setNotes] = useState([]);
-  const [existingNote, setExistingNote] = useState('');
-  const [activity, setActivity] = useState([]);
-  const [noteText, setNoteText] = useState('');
-  const [noteError, setNoteError] = useState('');
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('New');
   const [actionError, setActionError] = useState('');
@@ -37,28 +31,12 @@ export default function InvestigationPage() {
       setTransaction(selected);
       setStatus(selected.status || 'New');
 
-      const [customerTransactions, customerTimeline, alerts, profileData] = await Promise.all([
+      const [customerTransactions, customerTimeline, alerts] = await Promise.all([
         getCustomerTransactions(selected.customerId).catch(() => null),
         getCustomerTimeline(selected.customerId).catch(() => null),
         getAlerts().catch(() => null),
-        getCustomerProfile(selected.customerId).catch(() => null),
       ]);
-      const matchingAlert = alerts?.find((alert) => alert.transactionId === selected.id);
-      setAlertId(matchingAlert?.id || null);
-      setExistingNote(matchingAlert?.notes || '');
-      setProfile(profileData);
-      if (matchingAlert) {
-        await Promise.all([openAlert(matchingAlert.id), getAlertNotes(matchingAlert.id), getAlertActivity(matchingAlert.id)]).then(([, savedNotes, savedActivity]) => {
-          setNotes(savedNotes || []);
-          setActivity(savedActivity || []);
-        });
-      }
-      const customerHistory = profileData?.transactions?.length ? profileData.transactions.map((item) => ({
-        date: item.dateTime,
-        amount: item.amount,
-        label: item.type,
-        risk: item.risk,
-      })) : customerTransactions?.length ? customerTransactions.map((item) => ({
+      const customerHistory = customerTransactions?.length ? customerTransactions.map((item) => ({
         date: item.dateTime,
         amount: item.amount,
         label: item.type,
@@ -67,16 +45,17 @@ export default function InvestigationPage() {
           date: `2026-09-${index + 10}`,
           amount,
           label: 'Received',
-          risk: index === (selected.history || []).length - 1 ? 'HIGH' : 'LOW',
+          risk: index === selected.history.length - 1 ? 'HIGH' : 'LOW',
         }));
 
       setHistory(customerHistory);
-      setTimeline(profileData?.timeline?.length ? profileData.timeline : customerTimeline?.length ? customerTimeline : selected.timeline || customerHistory.map((item) => ({
+      setTimeline(customerTimeline?.length ? customerTimeline : selected.timeline || customerHistory.map((item) => ({
         date: item.date,
         amount: item.amount,
         risk: item.risk,
         high: item.risk === 'HIGH',
       })));
+      setAlertId(alerts?.find((alert) => alert.transactionId === selected.id)?.id || null);
       setLoading(false);
     };
 
@@ -105,32 +84,12 @@ export default function InvestigationPage() {
       setActionError('The backend did not accept this action.');
       return;
     }
-    const updatedActivity = await getAlertActivity(alertId);
-    if (updatedActivity) setActivity(updatedActivity);
     setStatus(action === 'Allow' ? 'Resolved' : action === 'Request Verification' ? 'Verification Pending' : action === 'Under Review' ? 'Under Review' : 'Restricted - Simulated');
 
     if (action === 'Request Verification') {
       setCallStatus('Call attempted');
       setFollowUpText('Customer callback requested for transaction confirmation.');
     }
-  };
-
-  const handleSaveNote = async () => {
-    if (!alertId || !noteText.trim()) return;
-    setNoteError('');
-    const savedNote = await addAlertNote(alertId, noteText.trim());
-    if (!savedNote) {
-      setNoteError('Could not save note. Check the backend connection.');
-      return;
-    }
-    setNotes((currentNotes) => [...currentNotes, savedNote]);
-    setNoteText('');
-    setActivity((currentActivity) => [...currentActivity, {
-      event_type: 'NOTE_ADDED',
-      description: 'Investigator note added',
-      created_at: savedNote.created_at,
-      investigator: savedNote.investigator,
-    }]);
   };
 
   const handleCallCustomer = () => {
@@ -200,32 +159,8 @@ export default function InvestigationPage() {
             <div className="kicker">Why was this flagged?</div>
           </div>
           <RiskFactorList reasons={transaction.reasons || []} />
-          <div className="risk-breakdown">
-            {(transaction.riskFactors || []).map((factor) => (
-              <div className="risk-breakdown-row" key={`${factor.name}-${factor.score}`}>
-                <span>{factor.name}</span>
-                <strong>+{factor.score}</strong>
-                <small>{factor.reason}</small>
-              </div>
-            ))}
-            <div className="risk-breakdown-total"><span>Total</span><strong>{transaction.riskScore}/100</strong></div>
-          </div>
         </div>
       </div>
-
-      {profile && (
-        <div className="card list-card" style={{ marginTop: 20 }}>
-          <div className="section-header"><h3>Customer Profile</h3></div>
-          <div className="info-grid">
-            <div className="info-item"><span className="k">Customer Name</span><span className="v">{profile.customer_name}</span></div>
-            <div className="info-item"><span className="k">Customer ID</span><span className="v">{profile.customer_id}</span></div>
-            <div className="info-item"><span className="k">Transactions</span><span className="v">{profile.total_transaction_count}</span></div>
-            <div className="info-item"><span className="k">Total Value</span><span className="v">₹{Number(profile.total_transaction_value).toLocaleString('en-IN')}</span></div>
-            <div className="info-item"><span className="k">Average Amount</span><span className="v">₹{Number(profile.average_transaction_amount).toLocaleString('en-IN')}</span></div>
-            <div className="info-item"><span className="k">Previous Alerts</span><span className="v">{profile.previousAlerts.length}</span></div>
-          </div>
-        </div>
-      )}
 
       <div className="grid-two" style={{ marginTop: 20 }}>
         <div className="card list-card">
@@ -291,27 +226,6 @@ export default function InvestigationPage() {
             setFollowUpText('Schedule callback and escalate if the customer does not respond within 2 hours.');
             setStatus('Awaiting Callback');
           }}>Request Callback</button>
-        </div>
-      </div>
-
-      <div className="grid-two" style={{ marginTop: 20 }}>
-        <div className="card list-card">
-          <div className="section-header"><h3>Investigator Notes</h3></div>
-          <div className="field">
-            <textarea value={noteText} onChange={(event) => setNoteText(event.target.value)} rows={3} placeholder="Add an investigation note" />
-          </div>
-          <button type="button" className="btn btn-primary" onClick={handleSaveNote} disabled={!alertId || !noteText.trim()}>Save Note</button>
-          {noteError && <div className="empty-state error-state" style={{ marginTop: 12 }}>{noteError}</div>}
-          <div className="activity-list">
-            {existingNote && <div className="activity-item"><strong>Existing alert note</strong><span>{existingNote}</span></div>}
-            {notes.map((note) => <div className="activity-item" key={note.note_id}><strong>{note.investigator}</strong><span>{note.content}</span><small>{new Date(note.created_at).toLocaleString('en-IN')}</small></div>)}
-          </div>
-        </div>
-        <div className="card list-card">
-          <div className="section-header"><h3>Investigation Activity</h3></div>
-          <div className="activity-list">
-            {activity.length ? activity.map((event, index) => <div className="activity-item" key={event.event_id || `${event.event_type}-${index}`}><strong>{event.event_type.replaceAll('_', ' ')}</strong><span>{event.description}</span><small>{new Date(event.created_at).toLocaleString('en-IN')}</small></div>) : <div className="empty-state">No activity recorded yet.</div>}
-          </div>
         </div>
       </div>
 
